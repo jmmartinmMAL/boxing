@@ -1,0 +1,12 @@
+{
+  "name": "minijuego-boxing",
+  "version": "1.0.0",
+  "description": "Boxing Island - 1v1 online",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

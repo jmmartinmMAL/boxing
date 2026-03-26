@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/jmmar/OneDrive/Documentos/64/IASoftwareFactory/**)",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(node -e \":*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(curl -s http://localhost:3003/)",
+      "Bash(rsync:*)",
+      "Bash(scp:*)",
+      "Bash(git -C \"C:/Users/jmmar/OneDrive/Documentos/64/IASoftwareFactory/Minijuego Dodgeball\" remote -v)"
+    ]
+  }
+}

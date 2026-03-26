@@ -1,0 +1,250 @@
+/* ─── Reset & base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #0a0d1a;
+  color: #fff;
+  font-family: 'Arial', sans-serif;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ─── Lobby ────────────────────────────────────────────────────────────────── */
+#lobby {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, #1a1030 0%, #0a0d1a 100%);
+  z-index: 200;
+}
+
+.lobby-card {
+  background: rgba(255,255,255,0.07);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 24px;
+  padding: 44px 40px 36px;
+  text-align: center;
+  max-width: 460px;
+  width: 92%;
+}
+
+.lobby-emoji { font-size: 3.5rem; margin-bottom: 12px; line-height: 1; }
+
+.lobby-card h1 {
+  font-size: 2.1rem;
+  font-weight: 900;
+  color: #ffd54f;
+  letter-spacing: -0.5px;
+  margin-bottom: 6px;
+}
+
+.lobby-sub {
+  color: rgba(255,255,255,0.5);
+  font-size: 0.88rem;
+  margin-bottom: 20px;
+}
+
+.rules {
+  background: rgba(0,0,0,0.25);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 24px;
+  text-align: left;
+  font-size: 0.82rem;
+  line-height: 1.75;
+  color: rgba(255,255,255,0.7);
+}
+.rules p + p { margin-top: 4px; }
+
+.rule-stamina { color: #69f0ae; font-weight: 700; }
+.rule-power   { color: #ff9800; font-weight: 700; }
+
+.lobby-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lobby-form input {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 1.05rem;
+  padding: 13px 18px;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.lobby-form input:focus { border-color: #ffd54f; }
+.lobby-form input::placeholder { color: rgba(255,255,255,0.35); }
+
+.lobby-form button {
+  background: linear-gradient(135deg, #ffd54f, #ffb300);
+  color: #1a1200;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  padding: 14px;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+  letter-spacing: 0.5px;
+}
+.lobby-form button:hover  { filter: brightness(1.1); }
+.lobby-form button:active { transform: scale(0.97); }
+
+.lobby-error {
+  margin-top: 10px;
+  color: #ff5252;
+  font-size: 0.85rem;
+  min-height: 20px;
+}
+
+/* ─── Game UI ──────────────────────────────────────────────────────────────── */
+#game-ui {
+  width: 100%; height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#canvas-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 1280px;
+  aspect-ratio: 16 / 9;
+  flex-shrink: 0;
+}
+
+#game { width: 100%; height: 100%; display: block; }
+
+/* ─── In-canvas overlays ───────────────────────────────────────────────────── */
+.canvas-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.62);
+  backdrop-filter: blur(4px);
+}
+
+/* Waiting */
+.waiting-box {
+  text-align: center;
+  background: rgba(10,13,26,0.92);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  padding: 40px 56px;
+}
+
+.waiting-spinner {
+  width: 48px; height: 48px;
+  border: 4px solid rgba(255,255,255,0.15);
+  border-top-color: #ffd54f;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  margin: 0 auto 20px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#waiting-text { font-size: 1.4rem; font-weight: 700; color: #ffd54f; }
+.waiting-sub  { color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-top: 8px; }
+
+#start-now-btn {
+  margin-top: 20px;
+  background: linear-gradient(135deg, #66bb6a, #43a047);
+  color: #fff;
+  border: none; border-radius: 10px;
+  font-size: 1rem; font-weight: 800;
+  padding: 12px 32px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: filter 0.15s, transform 0.1s;
+}
+#start-now-btn:hover  { filter: brightness(1.12); }
+#start-now-btn:active { transform: scale(0.96); }
+
+/* Result */
+.result-card {
+  text-align: center;
+  background: rgba(10,13,26,0.96);
+  border: 2px solid rgba(255,213,79,0.3);
+  border-radius: 24px;
+  padding: 52px 64px;
+}
+
+#result-icon   { font-size: 3.2rem; margin-bottom: 12px; }
+#result-text   { font-size: 2.4rem; font-weight: 900; color: #ffd54f; margin-bottom: 10px; }
+#result-scores { font-size: 1.1rem; color: rgba(255,255,255,0.7); margin-bottom: 32px; }
+
+#restart-btn {
+  background: linear-gradient(135deg, #ffd54f, #ffb300);
+  color: #1a1200;
+  border: none; border-radius: 12px;
+  font-size: 1rem; font-weight: 800;
+  padding: 14px 36px;
+  cursor: pointer;
+  transition: filter 0.15s;
+}
+#restart-btn:hover { filter: brightness(1.1); }
+
+/* ─── Touch controls ───────────────────────────────────────────────────────── */
+#touch-controls {
+  display: none;
+  width: 100%;
+  height: 160px;
+  background: rgba(0,0,0,0.5);
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 960px) {
+  body { overflow-y: auto; }
+  #touch-controls { display: flex; }
+  #canvas-wrapper { aspect-ratio: auto; height: 56vh; }
+}
+
+#joystick-zone {
+  width: 130px; height: 130px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  border: 2px solid rgba(255,255,255,0.2);
+  position: relative;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+#joystick-thumb {
+  width: 54px; height: 54px;
+  background: rgba(255,255,255,0.35);
+  border-radius: 50%;
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+#action-btn {
+  width: 120px; height: 120px;
+  border-radius: 50%;
+  background: rgba(220,60,60,0.65);
+  border: 3px solid #e74c3c;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 2px;
+  touch-action: none;
+  cursor: pointer;
+  transition: background 0.1s, transform 0.08s;
+  flex-shrink: 0;
+}
+#action-btn:active, #action-btn.pressed {
+  background: rgba(220,60,60,0.9);
+  transform: scale(0.92);
+}
+.btn-icon  { font-size: 2.2rem; line-height: 1; }
+.btn-label { font-size: 0.65rem; font-weight: 700; letter-spacing: 1px; color: rgba(255,255,255,0.85); }

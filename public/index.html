@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Boxing Island</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ═══ LOBBY ══════════════════════════════════════════════════════════════ -->
+  <div id="lobby">
+    <div class="lobby-card">
+      <div class="lobby-emoji">🥊</div>
+      <h1>Boxing Island</h1>
+      <p class="lobby-sub">2–6 jugadores · Isla circular · 1 min 30 s</p>
+      <div class="rules">
+        <p>Muévete con <b>WASD</b> o flechas. Golpea con <b>ESPACIO</b>.</p>
+        <p>La barra de stamina se gasta al golpear. ¡Si se agota, espera a que se recargue!</p>
+        <p>Empuja a los rivales fuera de la isla. <b>+2 pts</b> por tirar a alguien, <b>−1 pt</b> si te tiran a ti.</p>
+        <p>Al caer al agua, las gallinas acuden a comerte. ¡Reapareces en 2 s!</p>
+        <p><span class="rule-stamina">⚡ Stamina</span> — recarga inmediata.</p>
+        <p><span class="rule-power">💪 Poder</span> — golpes más fuertes 5 s (guantes naranjas).</p>
+      </div>
+      <div class="lobby-form">
+        <input type="text" id="name-input" placeholder="Tu nombre" maxlength="16" autocomplete="off" spellcheck="false">
+        <button id="join-btn">¡A boxear!</button>
+      </div>
+      <p class="lobby-error" id="lobby-error"></p>
+    </div>
+  </div>
+
+  <!-- ═══ GAME UI ════════════════════════════════════════════════════════════ -->
+  <div id="game-ui" style="display:none">
+
+    <div id="canvas-wrapper">
+      <canvas id="game"></canvas>
+
+      <!-- Waiting overlay -->
+      <div id="waiting-overlay" class="canvas-overlay" style="display:none">
+        <div class="waiting-box">
+          <div class="waiting-spinner"></div>
+          <p id="waiting-text">Esperando jugadores… 0/6</p>
+          <p class="waiting-sub">Arranca automáticamente con 6 · Con 2+ puedes empezar ya</p>
+          <button id="start-now-btn" style="display:none" onclick="startNow()">▶ Empezar ahora</button>
+        </div>
+      </div>
+
+      <!-- Round result overlay -->
+      <div id="result-overlay" class="canvas-overlay" style="display:none">
+        <div class="result-card">
+          <div id="result-icon">🏆</div>
+          <div id="result-text"></div>
+          <div id="result-scores"></div>
+          <button id="restart-btn">Revancha</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Touch controls -->
+    <div id="touch-controls">
+      <div id="joystick-zone">
+        <div id="joystick-thumb"></div>
+      </div>
+      <div id="action-btn">
+        <span class="btn-icon">🥊</span>
+        <span class="btn-label">GOLPEAR</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
