@@ -575,7 +575,7 @@ function drawPlayer(p) {
   const light      = PLAYER_LIGHT[p.playerIndex];
   const isPower    = p.powerUntil > 0 && timeNow < p.powerUntil;
   const isPunching = p.punchTime > 0 && timeNow - p.punchTime < 260;
-  const isHit      = p.hitTime   > 0 && timeNow - p.hitTime   < 320;
+  const isHit      = p.hitTime   > 0 && timeNow - p.hitTime   < 100;
 
   const shakeX = isHit ? Math.sin(timeNow / 26) * 5 : 0;
   const shakeY = isHit ? Math.cos(timeNow / 26) * 3 : 0;
