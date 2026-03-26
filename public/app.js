@@ -16,6 +16,100 @@ const PLAYER_COLORS = ['#e74c3c', '#2980b9', '#27ae60', '#f39c12', '#9b59b6', '#
 const PLAYER_LIGHT  = ['#ff8a80', '#90caf9', '#a5d6a7', '#ffe082', '#ce93d8', '#80cbc4'];
 const PLAYER_LABEL  = ['1', '2', '3', '4', '5', '6'];
 
+// ─── Audio ────────────────────────────────────────────────────────────────────
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+function playTone(freq, type, duration, vol, freqEnd) {
+  try {
+    const ac  = getAudio();
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.connect(gain); gain.connect(ac.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ac.currentTime);
+    if (freqEnd !== undefined) osc.frequency.linearRampToValueAtTime(freqEnd, ac.currentTime + duration);
+    gain.gain.setValueAtTime(vol, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
+    osc.start(); osc.stop(ac.currentTime + duration);
+  } catch (_) {}
+}
+function playNoise(duration, vol, highpass) {
+  try {
+    const ac  = getAudio();
+    const buf = ac.createBuffer(1, ac.sampleRate * duration, ac.sampleRate);
+    const d   = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const src  = ac.createBufferSource();
+    const filt = ac.createBiquadFilter();
+    const gain = ac.createGain();
+    src.buffer = buf;
+    filt.type = 'highpass'; filt.frequency.value = highpass || 800;
+    src.connect(filt); filt.connect(gain); gain.connect(ac.destination);
+    gain.gain.setValueAtTime(vol, ac.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
+    src.start(); src.stop(ac.currentTime + duration);
+  } catch (_) {}
+}
+
+const SFX = {
+  punch()   { playNoise(0.08, 0.7, 400); playTone(120, 'sine', 0.08, 0.4, 60); },
+  hit()     { playNoise(0.12, 0.9, 200); playTone(80, 'sawtooth', 0.12, 0.5, 40); },
+  splash()  { playNoise(0.35, 0.6, 80); playTone(300, 'sine', 0.35, 0.3, 60); },
+  chicken() { playTone(800, 'square', 0.06, 0.15, 1200); setTimeout(() => playTone(1000, 'square', 0.06, 0.12, 600), 80); },
+  item()    { playTone(660, 'sine', 0.1, 0.4); playTone(880, 'sine', 0.1, 0.3); },
+  win()     {
+    [0, 120, 240].forEach(d => setTimeout(() => playTone(523 + d * 2, 'sine', 0.25, 0.4), d));
+    setTimeout(() => playTone(1047, 'sine', 0.5, 0.5), 400);
+  },
+  lose()    { playTone(300, 'sawtooth', 0.4, 0.3, 150); },
+};
+
+// track previous state for sound triggers
+let prevPunchTimes = {};
+let prevHitTimes   = {};
+let prevKillCount  = 0;
+let prevPhase      = null;
+let prevItemCount  = 0;
+
+function triggerSounds(state) {
+  if (!state) return;
+  const { players, killEvents, phase, items } = state;
+
+  // Punch / hit sounds
+  if (players) {
+    for (const p of players) {
+      if (p.punchTime && p.punchTime !== prevPunchTimes[p.id]) {
+        SFX.punch(); prevPunchTimes[p.id] = p.punchTime;
+      }
+      if (p.hitTime && p.hitTime !== prevHitTimes[p.id]) {
+        SFX.hit(); prevHitTimes[p.id] = p.hitTime;
+      }
+    }
+  }
+
+  // Splash (new kill event)
+  const kCount = killEvents ? killEvents.length : 0;
+  if (kCount > prevKillCount) { SFX.splash(); SFX.chicken(); }
+  prevKillCount = kCount;
+
+  // Item pickup (item count dropped)
+  const iCount = items ? items.length : 0;
+  if (iCount < prevItemCount) SFX.item();
+  prevItemCount = iCount;
+
+  // Round end
+  if (phase === 'ended' && prevPhase === 'playing') {
+    setTimeout(() => {
+      const result = state.roundResult;
+      if (result && result.winnerId === myId) SFX.win(); else SFX.lose();
+    }, 300);
+  }
+  prevPhase = phase;
+}
+
 // ─── State ────────────────────────────────────────────────────────────────────
 let myId          = null;
 let myPlayerIndex = -1;
@@ -66,6 +160,7 @@ async function joinGame() {
     }
     const data = await res.json();
     myId = data.playerId; myPlayerIndex = data.playerIndex;
+    getAudio(); // unlock AudioContext on user gesture
     if (data.config) {
       ({ ARENA_W, ARENA_H, ISLAND_CX, ISLAND_CY, ISLAND_R, PLAYER_R, MAX_HP, MAX_STAMINA, POWER_DURATION_MS, ROUND_MS } = data.config);
       canvas.width = ARENA_W; canvas.height = ARENA_H;
@@ -87,6 +182,13 @@ function connectSSE() {
   es.onmessage = e => {
     const data = JSON.parse(e.data);
     if (data.type === 'connected') return;
+    if (data.goToLobby) {
+      myId = null; myPlayerIndex = -1; gameState = null;
+      gameUI.style.display = 'none'; lobby.style.display = 'flex';
+      joinBtn.disabled = false;
+      return;
+    }
+    triggerSounds(data);
     gameState = data; updateOverlays();
   };
   es.onerror = () => setTimeout(connectSSE, 2000);
@@ -129,6 +231,10 @@ function updateOverlays() {
 
 async function startNow() { try { await fetch('/api/start', { method: 'POST' }); } catch (_) {} }
 async function requestRestart() { try { await fetch('/api/restart', { method: 'POST' }); } catch (_) {} }
+async function endGame() {
+  if (!confirm('¿Terminar la partida y volver al lobby?')) return;
+  try { await fetch('/api/endgame', { method: 'POST' }); } catch (_) {}
+}
 
 // ─── Keyboard ─────────────────────────────────────────────────────────────────
 const keys = {};
@@ -470,15 +576,12 @@ function drawPlayer(p) {
   const isPower    = p.powerUntil > 0 && timeNow < p.powerUntil;
   const isPunching = p.punchTime > 0 && timeNow - p.punchTime < 260;
   const isHit      = p.hitTime   > 0 && timeNow - p.hitTime   < 320;
-  const justRespawned  = p.respawnedAt > 0 && timeNow - p.respawnedAt < 700;
-  const respawnFrac    = justRespawned ? (timeNow - p.respawnedAt) / 700 : 1;
 
   const shakeX = isHit ? Math.sin(timeNow / 26) * 5 : 0;
   const shakeY = isHit ? Math.cos(timeNow / 26) * 3 : 0;
 
   ctx.save();
   ctx.translate(p.x + shakeX, p.y + shakeY);
-  if (justRespawned) { ctx.globalAlpha = respawnFrac; ctx.scale(0.4 + 0.6 * respawnFrac, 0.4 + 0.6 * respawnFrac); }
 
   // Rotate everything to facing direction
   ctx.rotate(p.angle);
@@ -536,17 +639,19 @@ function drawPlayer(p) {
   const gloveR   = isPower ? 12 : 9;
   const gloveCol = isPower ? '#ff9800' : light;
   const gloveStk = isPower ? '#e65100' : col;
-  const punchFwd = isPunching ? 14 : 0;
-  const GLOVE_SIDE_Y = TH + 8; // perpendicular offset
+  // Rest: gloves at sides (gx≈0). Punch: swing forward along facing axis.
+  const gloveRestX  = -TW * 0.1;           // slightly behind center
+  const glovePunchX =  TW * 0.9;           // clearly extended forward
+  const gloveRestY  =  TH + 8;             // perpendicular offset
+  const glovePunchY =  TH + 2;             // slightly inward when punching
 
   if (isPower) { ctx.shadowColor = '#ff9800'; ctx.shadowBlur = 12; }
   ctx.fillStyle = gloveCol; ctx.strokeStyle = gloveStk; ctx.lineWidth = 2;
 
   for (const side of [-1, 1]) {
-    const gx = TW * 0.4 + punchFwd;
-    const gy = side * GLOVE_SIDE_Y;
+    const gx = isPunching ? glovePunchX : gloveRestX;
+    const gy = side * (isPunching ? glovePunchY : gloveRestY);
     ctx.beginPath(); ctx.arc(gx, gy, gloveR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    // Knuckle lines (along facing axis)
     ctx.strokeStyle = isPower ? '#bf360c' : 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1.2;
     for (let k = -1; k <= 1; k++) {
       const ang = k * 0.28;
@@ -595,55 +700,12 @@ function drawPlayer(p) {
   ctx.fillStyle = stPct > 0.5 ? '#4caf50' : stPct > 0.25 ? '#ff9800' : '#f44336';
   ctx.fillRect(bx, by, barW * stPct, barH);
 
-  // ── Respawn ring ───────────────────────────────────────────────────────────
-  if (justRespawned) {
-    ctx.save(); ctx.translate(p.x, p.y);
-    ctx.globalAlpha = (1 - respawnFrac) * 0.8;
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(0, 0, PLAYER_R * (1 + (1 - respawnFrac) * 2.5), 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = 1; ctx.restore();
-  }
-
-  // ── Score event floating text (+2 / -1) ────────────────────────────────────
-  if (p.scoreEventTime > 0 && timeNow - p.scoreEventTime < 1400) {
-    const elapsed = timeNow - p.scoreEventTime;
-    const frac    = elapsed / 1400;
-    ctx.save();
-    ctx.globalAlpha = Math.max(0, 1 - frac);
-    ctx.font        = 'bold 20px Arial'; ctx.textAlign = 'center';
-    ctx.fillStyle   = p.scoreEventDelta > 0 ? '#ffd54f' : '#ff5252';
-    ctx.shadowColor = '#000'; ctx.shadowBlur = 6;
-    ctx.fillText(
-      p.scoreEventDelta > 0 ? `+${p.scoreEventDelta}` : `${p.scoreEventDelta}`,
-      p.x + shakeX, p.y + shakeY - PLAYER_R - 36 - frac * 44
-    );
-    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-    ctx.restore();
-  }
 }
 
 // ─── HUD ──────────────────────────────────────────────────────────────────────
 function drawHUD() {
   if (!gameState) return;
-  const { players, phase, roundEndsAt, serverTime, playerCount } = gameState;
-
-  // ── Timer ──────────────────────────────────────────────────────────────────
-  if (phase === 'playing') {
-    const remaining = Math.max(0, (roundEndsAt - serverTime) / 1000);
-    const mins      = Math.floor(remaining / 60);
-    const secs      = Math.floor(remaining % 60);
-    const urgent    = remaining < 15;
-
-    ctx.fillStyle = urgent ? 'rgba(180,0,0,0.72)' : 'rgba(0,0,0,0.55)';
-    roundRect(ctx, ARENA_W / 2 - 64, 8, 128, 48, 10); ctx.fill();
-
-    ctx.font        = `bold ${urgent ? 34 : 30}px Arial`;
-    ctx.textAlign   = 'center';
-    ctx.fillStyle   = urgent ? '#ff5252' : '#fff';
-    ctx.shadowColor = '#000'; ctx.shadowBlur = 5;
-    ctx.fillText(`${mins}:${String(secs).padStart(2, '0')}`, ARENA_W / 2, 44);
-    ctx.shadowBlur  = 0;
-  }
+  const { players, phase, playerCount } = gameState;
 
   // ── Scoreboard (top right) ─────────────────────────────────────────────────
   if (players && players.length > 0) {
@@ -656,7 +718,7 @@ function drawHUD() {
 
     ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(255,255,255,0.38)';
-    ctx.fillText('PUNTUACIÓN', sbX + sbW / 2, sbY + 14);
+    ctx.fillText('VICTORIAS', sbX + sbW / 2, sbY + 14);
 
     sorted.forEach((p, rank) => {
       const py   = sbY + 22 + rank * 25;

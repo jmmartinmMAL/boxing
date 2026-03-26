@@ -191,6 +191,19 @@ html, body {
 }
 #restart-btn:hover { filter: brightness(1.1); }
 
+/* ─── Result buttons ───────────────────────────────────────────────────────── */
+.result-btns { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+
+#endgame-btn {
+  background: linear-gradient(135deg, #e53935, #b71c1c);
+  color: #fff;
+  border: none; border-radius: 12px;
+  padding: 14px 32px;
+  font-size: 1.1rem; font-weight: 900; cursor: pointer;
+  transition: filter 0.15s;
+}
+#endgame-btn:hover { filter: brightness(1.1); }
+
 /* ─── Touch controls ───────────────────────────────────────────────────────── */
 #touch-controls {
   display: none;

@@ -21,7 +21,7 @@ const PUNCH_COOLDOWN_MS = 420;    // min ms between punches
 const PUNCH_COST        = 20;
 const PUNCH_RANGE       = 70;     // euclidean px (~1.5 player widths apart)
 const PUNCH_DAMAGE      = 12;
-const PUNCH_KNOCKBACK   = 260;    // initial velocity px/s
+const PUNCH_KNOCKBACK   = 380;    // initial velocity px/s
 const VEL_DECAY_K       = 5;      // exp decay: total_disp ≈ v0/k
 const POWER_MULT        = 2.5;
 const POWER_DURATION_MS = 5000;
@@ -72,6 +72,9 @@ function makeGameState() {
     roundResult:  null,
     itemTimer:    ITEM_SPAWN_MS * 0.5,
     roundEndsAt:  0,
+    pendingEndAt: 0,   // timestamp when to actually call endRound (after chicken delay)
+    pendingWinner: null,
+    goToLobby:    false,
   };
 }
 
@@ -100,13 +103,20 @@ function tick() {
   if (gs.phase === 'waiting') {
     if (gs.players.size >= MAX_PLAYERS) startRound(now);
   } else if (gs.phase === 'playing') {
-    if (now >= gs.roundEndsAt) {
-      endRound();
-    } else {
-      updatePlayers(dt, now);
-      updateItems(dt);
-      updateSeaChickens(dt, now);
-      gs.killEvents = gs.killEvents.filter(e => now - e.time < KILL_TTL);
+    updatePlayers(dt, now);
+    updateItems(dt);
+    updateSeaChickens(dt, now);
+    gs.killEvents = gs.killEvents.filter(e => now - e.time < KILL_TTL);
+    // Last man standing: wait 2s for chicken animation, then end round
+    const alivePlayers = [...gs.players.values()].filter(p => p.alive);
+    if (gs.players.size >= 2 && alivePlayers.length <= 1 && gs.pendingEndAt === 0) {
+      gs.pendingEndAt  = now + 2000;
+      gs.pendingWinner = alivePlayers[0] || null;
+    }
+    if (gs.pendingEndAt > 0 && now >= gs.pendingEndAt) {
+      endRound(gs.pendingWinner);
+      gs.pendingEndAt  = 0;
+      gs.pendingWinner = null;
     }
   }
 
@@ -115,29 +125,31 @@ function tick() {
 
 // ─── Round lifecycle ──────────────────────────────────────────────────────────
 function startRound(now) {
-  gs.phase      = 'playing';
-  gs.roundEndsAt = now + ROUND_MS;
-  gs.items      = [];
-  gs.killEvents = [];
-  gs.itemTimer  = ITEM_SPAWN_MS * 0.5;
-  gs.roundResult = null;
+  gs.phase        = 'playing';
+  gs.roundEndsAt  = 0;
+  gs.pendingEndAt = 0;
+  gs.pendingWinner = null;
+  gs.items        = [];
+  gs.killEvents   = [];
+  gs.itemTimer    = ITEM_SPAWN_MS * 0.5;
+  gs.roundResult  = null;
 
   const players = [...gs.players.values()];
   players.forEach((p, i) => {
-    const sp       = getSpawnPos(i, players.length);
-    p.x            = sp.x; p.y = sp.y;
-    p.velX         = 0;    p.velY = 0;
-    p.angle        = Math.atan2(ISLAND_CY - sp.y, ISLAND_CX - sp.x);
-    p.alive        = true;
-    p.respawnAt    = 0;
-    p.respawnedAt  = 0;
-    p.hp           = MAX_HP;
-    p.stamina      = MAX_STAMINA;
+    const sp        = getSpawnPos(i, players.length);
+    p.x             = sp.x; p.y = sp.y;
+    p.velX          = 0;    p.velY = 0;
+    p.angle         = Math.atan2(ISLAND_CY - sp.y, ISLAND_CX - sp.x);
+    p.alive         = true;
+    p.respawnAt     = 0;
+    p.respawnedAt   = 0;
+    p.hp            = MAX_HP;
+    p.stamina       = MAX_STAMINA;
     p.lastPunchTime = 0;
-    p.powerUntil   = 0;
-    p.score        = 0;
-    p.lastHitBy    = null;
-    p.lastHitTime  = 0;
+    p.powerUntil    = 0;
+    // score (round wins) is intentionally NOT reset here
+    p.lastHitBy     = null;
+    p.lastHitTime   = 0;
     p.dirX = 0; p.dirY = 0;
     p.action = false; p.prevAction = false;
     p.punchTime = 0; p.hitTime = 0;
@@ -152,11 +164,12 @@ function getSpawnPos(index, total) {
   return { x: ISLAND_CX + Math.cos(angle) * r, y: ISLAND_CY + Math.sin(angle) * r };
 }
 
-function endRound() {
+function endRound(winner) {
   gs.phase = 'ended';
+  if (winner) winner.score += 1;
   const players = [...gs.players.values()].sort((a, b) => b.score - a.score);
   gs.roundResult = {
-    winnerId: players[0] ? players[0].id : null,
+    winnerId: winner ? winner.id : null,
     scores:   players.map(p => ({ id: p.id, name: p.name, score: p.score, playerIndex: p.playerIndex })),
   };
 }
@@ -164,10 +177,7 @@ function endRound() {
 // ─── Player update ────────────────────────────────────────────────────────────
 function updatePlayers(dt, now) {
   for (const p of gs.players.values()) {
-    if (!p.alive) {
-      if (p.respawnAt > 0 && now >= p.respawnAt) respawnPlayer(p, now);
-      continue;
-    }
+    if (!p.alive) continue;
 
     // Stamina regen
     if (now - p.lastPunchTime > PUNCH_REGEN_DELAY)
@@ -243,18 +253,8 @@ function killPlayer(p, now) {
 
   gs.killEvents.push({ x: p.x, y: p.y, time: now, killerId: killer ? killer.id : null, victimId: p.id });
 
-  // Scoring
-  if (killer) {
-    killer.score += 2;
-    killer.scoreEventDelta = 2;
-    killer.scoreEventTime  = now;
-  }
-  p.score = Math.max(0, p.score - 1);
-  p.scoreEventDelta = -1;
-  p.scoreEventTime  = now;
-
   p.alive     = false;
-  p.respawnAt = now + RESPAWN_MS;
+  p.respawnAt = 0;  // no respawn in king of the hill
   p.hp        = MAX_HP;
   p.velX = 0; p.velY = 0;
 }
@@ -460,8 +460,11 @@ function buildPayload(now) {
       scoreEventTime:    p.scoreEventTime,
     });
   }
+  const goToLobby = gs.goToLobby;
+  if (gs.goToLobby) gs.goToLobby = false;
   return {
     phase:       gs.phase,
+    goToLobby,
     players,
     items:       gs.items,
     seaChickens: gs.seaChickens.map(c => ({
@@ -571,16 +574,26 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (url.pathname === '/api/restart' && method === 'POST') {
-    if (gs.phase === 'ended') {
-      gs.phase = 'waiting'; gs.roundResult = null; gs.items = []; gs.killEvents = []; gs.itemTimer = ITEM_SPAWN_MS * 0.5;
-      for (const p of gs.players.values()) {
-        p.hp = MAX_HP; p.stamina = MAX_STAMINA; p.score = 0;
-        p.alive = true; p.respawnAt = 0; p.velX = 0; p.velY = 0; p.powerUntil = 0;
-        p.prevAction = false; p.action = false; p.punchTime = 0; p.hitTime = 0;
-        p.scoreEventDelta = 0; p.scoreEventTime = 0;
-      }
+  if (url.pathname === '/api/endgame' && method === 'POST') {
+    // Broadcast goToLobby first, then clean up after clients have received it
+    gs.goToLobby = true;
+    const lobbyMsg = 'data: ' + JSON.stringify({ goToLobby: true }) + '\n\n';
+    for (const [id, cl] of gs.clients) {
+      try { cl.write(lobbyMsg); } catch (_) {}
     }
+    setTimeout(() => {
+      gs.phase = 'waiting'; gs.roundResult = null; gs.items = []; gs.killEvents = []; gs.itemTimer = ITEM_SPAWN_MS;
+      gs.goToLobby = false;
+      gs.players.clear();
+      for (const cl of gs.clients.values()) { try { cl.end(); } catch (_) {} }
+      gs.clients.clear();
+    }, 300);
+    res.writeHead(204); res.end();
+    return;
+  }
+
+  if (url.pathname === '/api/restart' && method === 'POST') {
+    if (gs.phase === 'ended') startRound(Date.now()); // keeps scores
     res.writeHead(204); res.end();
     return;
   }
